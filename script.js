@@ -119,6 +119,7 @@ class DeliveryDashboard {
         const statReussies = document.getElementById('stat-reussies');
         const statBrut = document.getElementById('stat-brut');
         const statNet = document.getElementById('stat-net');
+        const statBenefice = document.getElementById('stat-benefice');
         const bilanRecettes = document.getElementById('bilan-recettes');
         const bilanDepenses = document.getElementById('bilan-depenses');
         const bilanBalance = document.getElementById('bilan-balance');
@@ -128,6 +129,11 @@ class DeliveryDashboard {
         if (statReussies) statReussies.textContent = s.reussies;
         if (statBrut) statBrut.textContent = this.formatFCFA(s.brut);
         if (statNet) statNet.textContent = this.formatFCFA(s.net);
+        
+        if (statBenefice) {
+            statBenefice.textContent = this.formatFCFA(s.balance);
+            statBenefice.className = `font-bold text-xl ${s.balance >= 0 ? 'text-green-600' : 'text-red-600'}`;
+        }
         
         if (bilanRecettes) bilanRecettes.textContent = this.formatFCFA(s.net);
         if (bilanDepenses) bilanDepenses.textContent = this.formatFCFA(s.totalDep);
@@ -441,7 +447,7 @@ DÉPENSES TOTALES: ${this.formatFCFA(totalDep)}
 RECETTES NETTES: ${this.formatFCFA(net)}
 DÉPENSES TOTALES: ${this.formatFCFA(totalDep)}
 -------------------------------------
-BALANCE NETTE: ${this.formatFCFA(balance)}
+BÉNÉFICE NET: ${this.formatFCFA(balance)}
 
 =====================================
             OBSERVATIONS
@@ -632,7 +638,7 @@ Généré par Winner Express - ${dateObj.toLocaleDateString('fr-FR')} ${heure}`;
                         tension: 0.4
                     },
                     {
-                        label: 'Balance (FCFA)',
+                        label: 'Bénéfice (FCFA)',
                         data: balances,
                         borderColor: '#3b82f6', // blue-500
                         backgroundColor: 'rgba(59, 130, 246, 0.2)',
@@ -1092,7 +1098,7 @@ Généré par Winner Express - ${dateObj.toLocaleDateString('fr-FR')} ${heure}`;
                         return d.toLocaleDateString('fr-FR', { day: 'numeric', month: 'short' });
                     }),
                     datasets: [{
-                        label: 'Balance Nettes',
+                        label: 'Bénéfice Net',
                         data: balances,
                         borderColor: balances.map(b => b >= 0 ? 'rgb(34, 197, 94)' : 'rgb(239, 68, 68)'),
                         backgroundColor: balances.map(b => b >= 0 ? 'rgba(34, 197, 94, 0.1)' : 'rgba(239, 68, 68, 0.1)'),
