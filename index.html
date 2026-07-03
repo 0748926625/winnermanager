@@ -193,17 +193,10 @@
         </div>
     </header>
 
-    <!-- Navigation par onglets -->
+    <!-- Navigation par onglets (dynamique) -->
     <div class="container mx-auto px-6 pt-6">
-        <div class="flex space-x-2 bg-white rounded-2xl p-2 shadow-sm border border-gray-200 w-fit">
-            <button id="tab-general" onclick="dashboard.switchMode('general')"
-                class="tab-btn px-6 py-3 rounded-xl font-bold text-sm transition-all duration-300 bg-gradient-to-r from-emerald-500 to-green-600 text-white shadow-md">
-                <i class="fas fa-users mr-2"></i>Clients Généraux
-            </button>
-            <button id="tab-utb" onclick="dashboard.switchMode('utb')"
-                class="tab-btn px-6 py-3 rounded-xl font-bold text-sm transition-all duration-300 text-gray-500 hover:bg-gray-100">
-                <i class="fas fa-star mr-2"></i>UTB
-            </button>
+        <div id="tabs-container" class="flex flex-wrap gap-2 bg-white rounded-2xl p-2 shadow-sm border border-gray-200 w-fit">
+            <!-- généré par renderTabs() -->
         </div>
     </div>
 
@@ -462,6 +455,10 @@
                         <i class="fas fa-calendar-alt mr-3"></i>
                         RAPPORT MENSUEL
                     </button>
+                    <button onclick="dashboard.showMultiReportModal()" class="w-full text-white py-4 rounded-xl font-bold text-lg shadow-xl transition-all duration-300 hover:scale-105" style="background-color:#7c3aed;" onmouseover="this.style.backgroundColor='#6d28d9'" onmouseout="this.style.backgroundColor='#7c3aed'">
+                        <i class="fas fa-layer-group mr-3"></i>
+                        RAPPORT MULTI-COMPAGNIES
+                    </button>
                 </div>
             </div>
         </div>
@@ -572,6 +569,88 @@
                     <p class="text-gray-400 text-center py-12">
                         <i class="fas fa-calendar-alt text-4xl mb-3 block opacity-30"></i>
                         Sélectionnez un mois et cliquez sur "Afficher"
+                    </p>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Modale Créer une compagnie -->
+    <div id="create-company-modal" class="fixed inset-0 z-50 hidden items-center justify-center bg-black/50 backdrop-blur-sm p-4">
+        <div class="bg-white rounded-2xl shadow-2xl w-full max-w-md p-6">
+            <h2 class="text-xl font-black text-gray-800 mb-4 flex items-center">
+                <i class="fas fa-building mr-3 text-blue-500"></i>Nouvelle Compagnie
+            </h2>
+            <input type="text" id="new-company-name"
+                class="input-modern w-full px-4 py-3 rounded-xl mb-4"
+                placeholder="Nom de la compagnie..."
+                onkeydown="if(event.key==='Enter') dashboard.createCompany()">
+            <div class="flex gap-3">
+                <button onclick="dashboard.createCompany()"
+                    class="btn-primary flex-1 text-white py-3 rounded-xl font-bold">
+                    <i class="fas fa-check mr-2"></i>Créer
+                </button>
+                <button onclick="dashboard.closeCreateCompanyModal()"
+                    class="flex-1 bg-gray-100 text-gray-700 py-3 rounded-xl font-bold hover:bg-gray-200 transition">
+                    Annuler
+                </button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Modale Rapport Multi-Compagnies -->
+    <div id="multi-report-modal" class="fixed inset-0 z-50 hidden items-center justify-center bg-black/50 backdrop-blur-sm p-4">
+        <div class="bg-white rounded-2xl shadow-2xl w-full max-w-3xl flex flex-col" style="max-height:90vh;">
+            <!-- En-tête -->
+            <div class="flex justify-between items-center p-6 border-b border-gray-200 rounded-t-2xl" style="background-color:#7c3aed;">
+                <div>
+                    <h2 class="text-xl font-black text-white flex items-center">
+                        <i class="fas fa-layer-group mr-3"></i>Rapport Multi-Compagnies
+                    </h2>
+                    <p class="text-purple-200 text-sm mt-1">Comparez les résultats de plusieurs compagnies</p>
+                </div>
+                <button onclick="dashboard.closeMultiReportModal()" class="text-white hover:text-purple-200 transition p-2">
+                    <i class="fas fa-times text-xl"></i>
+                </button>
+            </div>
+            <!-- Sélecteurs -->
+            <div class="p-5 border-b border-gray-100 flex flex-wrap items-start gap-5">
+                <div>
+                    <p class="text-gray-700 font-semibold text-sm mb-2">Compagnies</p>
+                    <div id="multi-report-companies" class="space-y-1 min-w-[160px]"></div>
+                </div>
+                <div class="flex items-end gap-3 flex-wrap">
+                    <div>
+                        <label class="text-gray-700 font-semibold text-sm block mb-1">Mois</label>
+                        <select id="multi-report-month" class="input-modern px-3 py-2 rounded-lg text-sm">
+                            <option value="1">Janvier</option><option value="2">Février</option>
+                            <option value="3">Mars</option><option value="4">Avril</option>
+                            <option value="5">Mai</option><option value="6">Juin</option>
+                            <option value="7">Juillet</option><option value="8">Août</option>
+                            <option value="9">Septembre</option><option value="10">Octobre</option>
+                            <option value="11">Novembre</option><option value="12">Décembre</option>
+                        </select>
+                    </div>
+                    <div>
+                        <label class="text-gray-700 font-semibold text-sm block mb-1">Année</label>
+                        <input type="number" id="multi-report-year" class="input-modern px-3 py-2 rounded-lg text-sm w-24" value="2025">
+                    </div>
+                    <button onclick="dashboard.generateMultiReport()"
+                        class="bg-gradient-to-r from-blue-500 to-indigo-600 text-white px-5 py-2 rounded-lg font-semibold text-sm hover:scale-105 transition-all shadow-md">
+                        <i class="fas fa-search mr-2"></i>Afficher
+                    </button>
+                    <button onclick="dashboard.downloadMultiReportPDF()"
+                        class="bg-gradient-to-r from-red-500 to-rose-600 text-white px-5 py-2 rounded-lg font-semibold text-sm hover:scale-105 transition-all shadow-md">
+                        <i class="fas fa-file-pdf mr-2"></i>PDF
+                    </button>
+                </div>
+            </div>
+            <!-- Tableau -->
+            <div class="flex-1 overflow-auto p-6">
+                <div id="multi-report-container">
+                    <p class="text-gray-400 text-center py-10">
+                        <i class="fas fa-layer-group text-4xl mb-3 block opacity-30"></i>
+                        Sélectionnez les compagnies et cliquez sur "Afficher"
                     </p>
                 </div>
             </div>

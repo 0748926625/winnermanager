@@ -15,6 +15,7 @@ class DeliveryDashboard {
 
         this.initSelectors();
         this.initEventListeners();
+        this.renderTabs();
 
         // Initialiser Supabase et synchroniser
         this.initSupabase();
@@ -78,46 +79,290 @@ class DeliveryDashboard {
 
     // Clé localStorage selon le mode actif
     getStorageKey() {
-        return this.currentMode === 'utb' ? 'utbHistoricalData' : 'deliveryHistoricalData';
+        if (this.currentMode === 'general') return 'deliveryHistoricalData';
+        if (this.currentMode === 'utb')     return 'utbHistoricalData';
+        return `companyData_${this.currentMode}`;
+    }
+
+    // ─── Gestion des compagnies ───────────────────────────────────────────────
+
+    getCompanies() {
+        const defaults = [
+            { id: 'general', name: 'Clients Généraux', color: 'green' },
+            { id: 'utb',     name: 'UTB',              color: 'amber' }
+        ];
+        return JSON.parse(localStorage.getItem('winnerCompanies') || 'null') || defaults;
+    }
+
+    saveCompanies(companies) {
+        localStorage.setItem('winnerCompanies', JSON.stringify(companies));
+    }
+
+    getCurrentCompanyName() {
+        const co = this.getCompanies().find(c => c.id === this.currentMode);
+        return co ? co.name : this.currentMode;
+    }
+
+    renderTabs() {
+        const container = document.getElementById('tabs-container');
+        if (!container) return;
+        const companies = this.getCompanies();
+        const gradients = {
+            green:  'from-emerald-500 to-green-600',
+            amber:  'from-amber-500 to-orange-600',
+            blue:   'from-blue-500 to-blue-700',
+            purple: 'from-purple-500 to-purple-700',
+            rose:   'from-rose-500 to-pink-600',
+            cyan:   'from-cyan-500 to-teal-600',
+            indigo: 'from-indigo-500 to-indigo-700',
+            teal:   'from-teal-500 to-teal-700',
+            pink:   'from-pink-500 to-pink-700',
+            violet: 'from-violet-500 to-violet-700',
+        };
+        const icons = { general: 'fa-users', utb: 'fa-star' };
+
+        container.innerHTML = companies.map(co => {
+            const isActive = this.currentMode === co.id;
+            const grad = gradients[co.color] || 'from-blue-500 to-blue-700';
+            const btnClass = isActive
+                ? `bg-gradient-to-r ${grad} text-white shadow-md`
+                : 'text-gray-500 hover:bg-gray-100';
+            const icon = icons[co.id] || 'fa-building';
+            const canDelete = co.id !== 'general' && co.id !== 'utb';
+            const deleteBtn = canDelete
+                ? `<span onclick="event.stopPropagation();dashboard.deleteCompany('${co.id}')" class="ml-1 opacity-60 hover:opacity-100 hover:text-red-300 transition" title="Supprimer"><i class="fas fa-times text-xs"></i></span>`
+                : '';
+            return `<button id="tab-${co.id}" onclick="dashboard.switchMode('${co.id}')"
+                class="tab-btn px-5 py-3 rounded-xl font-bold text-sm transition-all duration-300 flex items-center gap-2 ${btnClass}">
+                <i class="fas ${icon}"></i>${co.name}${deleteBtn}
+            </button>`;
+        }).join('');
+
+        container.innerHTML += `<button onclick="dashboard.showCreateCompanyModal()"
+            class="px-4 py-3 rounded-xl font-bold text-sm text-gray-400 hover:bg-gray-100 hover:text-gray-600 transition-all" title="Nouvelle compagnie">
+            <i class="fas fa-plus"></i>
+        </button>`;
+    }
+
+    showCreateCompanyModal() {
+        document.getElementById('new-company-name').value = '';
+        const modal = document.getElementById('create-company-modal');
+        modal.classList.remove('hidden');
+        modal.classList.add('flex');
+        setTimeout(() => document.getElementById('new-company-name').focus(), 100);
+    }
+
+    closeCreateCompanyModal() {
+        const modal = document.getElementById('create-company-modal');
+        modal.classList.add('hidden');
+        modal.classList.remove('flex');
+    }
+
+    createCompany() {
+        const name = document.getElementById('new-company-name').value.trim();
+        if (!name) return;
+        const companies = this.getCompanies();
+        const allColors = ['green','amber','blue','purple','rose','cyan','indigo','teal','pink','violet'];
+        const usedColors = companies.map(c => c.color);
+        const color = allColors.find(c => !usedColors.includes(c)) || 'blue';
+        const id = 'co_' + Date.now();
+        companies.push({ id, name, color });
+        this.saveCompanies(companies);
+        this.closeCreateCompanyModal();
+        this.renderTabs();
+        this.switchMode(id);
+    }
+
+    deleteCompany(id) {
+        const companies = this.getCompanies();
+        const co = companies.find(c => c.id === id);
+        if (!co) return;
+        if (!confirm(`Supprimer "${co.name}" ? Toutes ses données seront perdues.`)) return;
+        this.saveCompanies(companies.filter(c => c.id !== id));
+        localStorage.removeItem(`companyData_${id}`);
+        this.renderTabs();
+        if (this.currentMode === id) this.switchMode('general');
+    }
+
+    // ─── Rapport multi-compagnies ─────────────────────────────────────────────
+
+    showMultiReportModal() {
+        const companies = this.getCompanies();
+        document.getElementById('multi-report-companies').innerHTML = companies.map(co => `
+            <label class="flex items-center gap-3 p-2 rounded-lg hover:bg-gray-50 cursor-pointer">
+                <input type="checkbox" value="${co.id}" class="w-4 h-4 accent-green-500" checked>
+                <span class="font-medium text-gray-700">${co.name}</span>
+            </label>`).join('');
+        const now = new Date();
+        document.getElementById('multi-report-year').value  = now.getFullYear();
+        document.getElementById('multi-report-month').value = now.getMonth() + 1;
+        document.getElementById('multi-report-container').innerHTML = `
+            <p class="text-gray-400 text-center py-10"><i class="fas fa-layer-group text-4xl mb-3 block opacity-30"></i>Sélectionnez les compagnies et cliquez sur "Afficher"</p>`;
+        const modal = document.getElementById('multi-report-modal');
+        modal.classList.remove('hidden');
+        modal.classList.add('flex');
+    }
+
+    closeMultiReportModal() {
+        const modal = document.getElementById('multi-report-modal');
+        modal.classList.add('hidden');
+        modal.classList.remove('flex');
+    }
+
+    generateMultiReport() {
+        const year  = parseInt(document.getElementById('multi-report-year').value);
+        const month = parseInt(document.getElementById('multi-report-month').value);
+        if (!year || !month) return;
+        const selected = [...document.querySelectorAll('#multi-report-companies input:checked')].map(cb => cb.value);
+        if (!selected.length) return;
+        const companies = this.getCompanies().filter(c => selected.includes(c.id));
+        const moisNom = new Date(year, month - 1, 1).toLocaleDateString('fr-FR', { month: 'long', year: 'numeric' });
+        const savedMode = this.currentMode;
+        const stats = companies.map(co => {
+            this.currentMode = co.id;
+            const { days, totaux } = this._getMonthStats(year, month);
+            return { co, days, totaux };
+        });
+        this.currentMode = savedMode;
+        const container = document.getElementById('multi-report-container');
+        if (stats.every(s => s.days.length === 0)) {
+            container.innerHTML = `<p class="text-gray-400 text-center py-10"><i class="fas fa-inbox text-4xl mb-3 block opacity-30"></i>Aucune donnée pour ce mois</p>`;
+            return;
+        }
+        const grand = stats.reduce((acc, s) => ({
+            totalLiv: acc.totalLiv + s.totaux.totalLiv,
+            totalEch: acc.totalEch + s.totaux.totalEch,
+            net:      acc.net      + s.totaux.net,
+            totalDep: acc.totalDep + s.totaux.totalDep,
+            balance:  acc.balance  + s.totaux.balance,
+            days:     acc.days     + s.days.length,
+        }), { totalLiv:0, totalEch:0, net:0, totalDep:0, balance:0, days:0 });
+        const rows = stats.map(s => {
+            const bal = s.totaux.balance;
+            return `<tr class="border-b border-gray-100 hover:bg-gray-50">
+                <td class="px-4 py-3 font-bold text-gray-800">${s.co.name}</td>
+                <td class="px-4 py-3 text-center text-gray-600">${s.days.length}</td>
+                <td class="px-4 py-3 text-center text-gray-600">${s.totaux.totalLiv}</td>
+                <td class="px-4 py-3 text-center text-red-500">${s.totaux.totalEch}</td>
+                <td class="px-4 py-3 text-center text-green-600 font-semibold">${this.formatFCFA(s.totaux.net)}</td>
+                <td class="px-4 py-3 text-center text-red-600">${this.formatFCFA(s.totaux.totalDep)}</td>
+                <td class="px-4 py-3 text-center font-bold ${bal >= 0 ? 'text-green-700' : 'text-red-700'}">${this.formatFCFA(bal)}</td>
+            </tr>`;
+        }).join('');
+        container.innerHTML = `
+            <h3 class="text-base font-bold text-gray-700 mb-3">${moisNom.toUpperCase()} — Comparatif toutes compagnies</h3>
+            <div class="overflow-x-auto">
+                <table class="w-full text-sm">
+                    <thead><tr class="bg-gray-100 text-gray-600 uppercase text-xs">
+                        <th class="px-4 py-2 text-left rounded-tl-lg">Compagnie</th>
+                        <th class="px-4 py-2 text-center">Jours</th>
+                        <th class="px-4 py-2 text-center">Livraisons</th>
+                        <th class="px-4 py-2 text-center">Échecs</th>
+                        <th class="px-4 py-2 text-center">Recettes</th>
+                        <th class="px-4 py-2 text-center">Dépenses</th>
+                        <th class="px-4 py-2 text-center rounded-tr-lg">Bénéfice</th>
+                    </tr></thead>
+                    <tbody>${rows}</tbody>
+                    <tfoot><tr class="bg-gray-50 font-bold border-t-2 border-gray-300">
+                        <td class="px-4 py-3">TOTAL GLOBAL</td>
+                        <td class="px-4 py-3 text-center">${grand.days}</td>
+                        <td class="px-4 py-3 text-center">${grand.totalLiv}</td>
+                        <td class="px-4 py-3 text-center text-red-500">${grand.totalEch}</td>
+                        <td class="px-4 py-3 text-center text-green-700">${this.formatFCFA(grand.net)}</td>
+                        <td class="px-4 py-3 text-center text-red-600">${this.formatFCFA(grand.totalDep)}</td>
+                        <td class="px-4 py-3 text-center font-black ${grand.balance >= 0 ? 'text-green-700' : 'text-red-700'}">${this.formatFCFA(grand.balance)}</td>
+                    </tr></tfoot>
+                </table>
+            </div>`;
+    }
+
+    downloadMultiReportPDF() {
+        const year  = parseInt(document.getElementById('multi-report-year').value);
+        const month = parseInt(document.getElementById('multi-report-month').value);
+        if (!year || !month) return;
+        const selected = [...document.querySelectorAll('#multi-report-companies input:checked')].map(cb => cb.value);
+        if (!selected.length) return;
+        const companies = this.getCompanies().filter(c => selected.includes(c.id));
+        const moisNom = new Date(year, month - 1, 1).toLocaleDateString('fr-FR', { month: 'long', year: 'numeric' });
+        const savedMode = this.currentMode;
+        const stats = companies.map(co => {
+            this.currentMode = co.id;
+            const { days, totaux } = this._getMonthStats(year, month);
+            return { co, days, totaux };
+        });
+        this.currentMode = savedMode;
+        const fmt = (v) => Math.round(v).toString().replace(/\B(?=(\d{3})+(?!\d))/g, ' ') + ' FCFA';
+        const { jsPDF } = window.jspdf;
+        const doc = new jsPDF({ orientation: 'landscape', unit: 'mm', format: 'a4' });
+        doc.setFillColor(16, 185, 129);
+        doc.rect(0, 0, 297, 28, 'F');
+        doc.setTextColor(255,255,255);
+        doc.setFontSize(18); doc.setFont('helvetica','bold');
+        doc.text('WINNER EXPRESS', 14, 11);
+        doc.setFontSize(11); doc.setFont('helvetica','normal');
+        doc.text(`Rapport Multi-Compagnies — ${moisNom.toUpperCase()}`, 14, 19);
+        doc.setFontSize(8);
+        doc.text(`Généré le ${new Date().toLocaleString('fr-FR')}`, 297 - 14, 25.5, { align: 'right' });
+        const grand = stats.reduce((acc, s) => ({
+            totalLiv: acc.totalLiv + s.totaux.totalLiv, totalEch: acc.totalEch + s.totaux.totalEch,
+            net: acc.net + s.totaux.net, totalDep: acc.totalDep + s.totaux.totalDep,
+            balance: acc.balance + s.totaux.balance, days: acc.days + s.days.length,
+        }), { totalLiv:0, totalEch:0, net:0, totalDep:0, balance:0, days:0 });
+        const tableRows = stats.map(s => [
+            s.co.name, s.days.length, s.totaux.totalLiv, s.totaux.totalEch,
+            fmt(s.totaux.net), fmt(s.totaux.totalDep), fmt(s.totaux.balance),
+        ]);
+        tableRows.push([
+            { content: 'TOTAL GLOBAL', styles: { fontStyle: 'bold' } },
+            { content: grand.days, styles: { fontStyle: 'bold' } },
+            { content: grand.totalLiv, styles: { fontStyle: 'bold' } },
+            { content: grand.totalEch, styles: { fontStyle: 'bold', textColor: [220,38,38] } },
+            { content: fmt(grand.net), styles: { fontStyle: 'bold', textColor: [22,163,74] } },
+            { content: fmt(grand.totalDep), styles: { fontStyle: 'bold', textColor: [220,38,38] } },
+            { content: fmt(grand.balance), styles: { fontStyle: 'bold', textColor: grand.balance >= 0 ? [22,163,74] : [220,38,38] } },
+        ]);
+        doc.autoTable({
+            startY: 34,
+            head: [['Compagnie','Jours','Livraisons','Échecs','Recettes Nettes','Dépenses','Bénéfice Net']],
+            body: tableRows,
+            theme: 'grid',
+            styles: { fontSize: 9, cellPadding: 3, textColor: [50,50,50] },
+            headStyles: { fillColor: [4,120,87], textColor: [255,255,255], fontStyle: 'bold', halign: 'center' },
+            columnStyles: {
+                0: { halign: 'left', fontStyle: 'bold' },
+                1: { halign: 'center' }, 2: { halign: 'center' }, 3: { halign: 'center' },
+                4: { halign: 'right'  }, 5: { halign: 'right'  }, 6: { halign: 'right'  }
+            },
+            alternateRowStyles: { fillColor: [249,250,251] },
+            didParseCell: (data) => {
+                if (data.section === 'body' && data.column.index === 6 && data.row.index < stats.length) {
+                    const bal = stats[data.row.index].totaux.balance;
+                    data.cell.styles.textColor  = bal >= 0 ? [22,163,74] : [220,38,38];
+                    data.cell.styles.fontStyle  = 'bold';
+                }
+            }
+        });
+        const pageH = doc.internal.pageSize.height;
+        doc.setFillColor(16,185,129);
+        doc.rect(0, pageH - 10, 297, 10, 'F');
+        doc.setTextColor(255,255,255); doc.setFontSize(7);
+        doc.text('WINNER EXPRESS — Rapport confidentiel', 14, pageH - 3.5);
+        doc.text(moisNom, 297 - 14, pageH - 3.5, { align: 'right' });
+        doc.save(`Winner_Express_Multi_Compagnies_${year}-${String(month).padStart(2,'0')}.pdf`);
     }
 
     switchMode(mode) {
         if (this.currentMode === mode) return;
-
-        // Sauvegarder les données du mode actuel avant de switcher
         this.save();
-
         this.currentMode = mode;
-
-        // Charger les données du nouveau mode
         this.data = JSON.parse(localStorage.getItem(this.getStorageKey())) || {};
-
-        // Mettre à jour l'UI des onglets
-        const tabGeneral = document.getElementById('tab-general');
-        const tabUtb = document.getElementById('tab-utb');
+        this.renderTabs();
         const formTitle = document.getElementById('form-title');
-        const formIcon = document.getElementById('form-icon');
-
-        if (mode === 'utb') {
-            tabUtb.className = 'tab-btn px-6 py-3 rounded-xl font-bold text-sm transition-all duration-300 bg-gradient-to-r from-amber-500 to-orange-600 text-white shadow-md';
-            tabGeneral.className = 'tab-btn px-6 py-3 rounded-xl font-bold text-sm transition-all duration-300 text-gray-500 hover:bg-gray-100';
-            if (formTitle) formTitle.textContent = 'Saisie Journalière — UTB';
-            if (formIcon) formIcon.className = 'w-8 h-8 bg-gradient-to-br from-amber-400 to-orange-600 rounded-lg flex items-center justify-center mr-3';
-            document.body.style.backgroundColor = '#4c1d95';
-        } else {
-            tabGeneral.className = 'tab-btn px-6 py-3 rounded-xl font-bold text-sm transition-all duration-300 bg-gradient-to-r from-emerald-500 to-green-600 text-white shadow-md';
-            tabUtb.className = 'tab-btn px-6 py-3 rounded-xl font-bold text-sm transition-all duration-300 text-gray-500 hover:bg-gray-100';
-            if (formTitle) formTitle.textContent = 'Saisie Journalière';
-            if (formIcon) formIcon.className = 'w-8 h-8 bg-gradient-to-br from-blue-400 to-purple-600 rounded-lg flex items-center justify-center mr-3';
-            document.body.style.backgroundColor = '#f3f4f6';
-        }
-
-        // Recharger le formulaire avec les données du nouveau mode
+        if (formTitle) formTitle.textContent = `Saisie Journalière — ${this.getCurrentCompanyName()}`;
+        document.body.style.backgroundColor = mode === 'utb' ? '#4c1d95' : '#f3f4f6';
         if (document.getElementById('liv-1000')) {
             this.loadDateData(this.currentDate);
         }
-
-        // Rafraîchir le graphique
         this.updateChartPeriod('month');
     }
 
@@ -388,7 +633,7 @@ class DeliveryDashboard {
         // Créer une notification moderne et visible
         const notification = document.createElement('div');
         notification.className = 'fixed top-4 right-4 bg-green-500 text-white px-6 py-4 rounded-lg shadow-xl z-50 flex items-center space-x-3 notification-enter';
-        const modeLabel = this.currentMode === 'utb' ? 'UTB' : 'Clients Généraux';
+        const modeLabel = this.getCurrentCompanyName();
         notification.innerHTML = `
             <div class="flex-shrink-0">
                 <div class="w-6 h-6 bg-white rounded-full flex items-center justify-center animate-pulse">
@@ -1151,14 +1396,9 @@ Généré par Winner Express - ${dateObj.toLocaleDateString('fr-FR')} ${heure}`;
         const yearInput = document.getElementById('report-year');
         const monthInput = document.getElementById('report-month');
 
-        // Titre et couleur selon le mode actif
-        if (this.currentMode === 'utb') {
-            modeLabel.textContent = 'UTB';
-            header.style.backgroundColor = '#ea580c';
-        } else {
-            modeLabel.textContent = 'Clients Généraux';
-            header.style.backgroundColor = '#059669';
-        }
+        // Titre selon la compagnie active
+        modeLabel.textContent = this.getCurrentCompanyName();
+        header.style.backgroundColor = this.currentMode === 'utb' ? '#ea580c' : '#059669';
 
         // Pré-remplir avec le mois en cours
         const now = new Date();
@@ -1264,7 +1504,7 @@ Généré par Winner Express - ${dateObj.toLocaleDateString('fr-FR')} ${heure}`;
         }
 
         const moisNom = new Date(year, month - 1, 1).toLocaleDateString('fr-FR', { month: 'long', year: 'numeric' });
-        const modeLabel = this.currentMode === 'utb' ? 'UTB' : 'Clients Généraux';
+        const modeLabel = this.getCurrentCompanyName();
 
         let rows = days.map(d => {
             const dateFr = new Date(d.dateStr + 'T12:00:00').toLocaleDateString('fr-FR', { weekday: 'short', day: 'numeric', month: 'short' });
@@ -1322,7 +1562,7 @@ Généré par Winner Express - ${dateObj.toLocaleDateString('fr-FR')} ${heure}`;
 
         const { days, totaux } = this._getMonthStats(year, month);
         const moisNom   = new Date(year, month - 1, 1).toLocaleDateString('fr-FR', { month: 'long', year: 'numeric' });
-        const modeLabel = this.currentMode === 'utb' ? 'UTB' : 'Clients Généraux';
+        const modeLabel = this.getCurrentCompanyName();
         const heure     = new Date().toLocaleTimeString('fr-FR');
 
         if (days.length === 0) {
@@ -1390,21 +1630,20 @@ ${sep}
 
         const { days, totaux } = this._getMonthStats(year, month);
         const moisNom   = new Date(year, month - 1, 1).toLocaleDateString('fr-FR', { month: 'long', year: 'numeric' });
-        const modeLabel = this.currentMode === 'utb' ? 'UTB' : 'Clients Généraux';
+        const modeLabel = this.getCurrentCompanyName();
 
         if (days.length === 0) {
             alert(`Aucune donnée pour ${moisNom} — ${modeLabel}`);
             return;
         }
 
-        // Formateur sans espace insécable (évite les slashes dans jsPDF)
         const fmt = (v) => Math.round(v).toString().replace(/\B(?=(\d{3})+(?!\d))/g, ' ') + ' FCFA';
 
         const { jsPDF } = window.jspdf;
         const doc = new jsPDF({ orientation: 'landscape', unit: 'mm', format: 'a4' });
 
         const isUTB     = this.currentMode === 'utb';
-        const colorMain = isUTB ? [234, 88, 12] : [16, 185, 129];   // orange-600 / emerald-500
+        const colorMain = isUTB ? [234, 88, 12] : [16, 185, 129];
         const colorDark = isUTB ? [154, 52, 18]  : [4, 120, 87];
 
         // ── En-tête ──────────────────────────────────────────────────────────
