@@ -88,10 +88,18 @@ class DeliveryDashboard {
 
     getCompanies() {
         const defaults = [
-            { id: 'general', name: 'Clients Généraux', color: 'green' },
+            { id: 'general', name: 'Autres clients', color: 'green' },
             { id: 'utb',     name: 'UTB',              color: 'amber' }
         ];
-        return JSON.parse(localStorage.getItem('winnerCompanies') || 'null') || defaults;
+        const saved = JSON.parse(localStorage.getItem('winnerCompanies') || 'null');
+        if (!saved) return defaults;
+        // Migration : renommer l'ancien nom si nécessaire
+        let changed = false;
+        saved.forEach(c => {
+            if (c.id === 'general' && c.name === 'Clients Généraux') { c.name = 'Autres clients'; changed = true; }
+        });
+        if (changed) localStorage.setItem('winnerCompanies', JSON.stringify(saved));
+        return saved;
     }
 
     saveCompanies(companies) {
@@ -108,39 +116,40 @@ class DeliveryDashboard {
         if (!container) return;
         const companies = this.getCompanies();
         const gradients = {
-            green:  'from-emerald-500 to-green-600',
-            amber:  'from-amber-500 to-orange-600',
-            blue:   'from-blue-500 to-blue-700',
-            purple: 'from-purple-500 to-purple-700',
-            rose:   'from-rose-500 to-pink-600',
-            cyan:   'from-cyan-500 to-teal-600',
-            indigo: 'from-indigo-500 to-indigo-700',
-            teal:   'from-teal-500 to-teal-700',
-            pink:   'from-pink-500 to-pink-700',
-            violet: 'from-violet-500 to-violet-700',
+            green:  'linear-gradient(to right, #10b981, #059669)',
+            amber:  'linear-gradient(to right, #f59e0b, #ea580c)',
+            blue:   'linear-gradient(to right, #3b82f6, #1d4ed8)',
+            purple: 'linear-gradient(to right, #a855f7, #7e22ce)',
+            rose:   'linear-gradient(to right, #f43f5e, #ec4899)',
+            cyan:   'linear-gradient(to right, #06b6d4, #0f766e)',
+            indigo: 'linear-gradient(to right, #6366f1, #3730a3)',
+            teal:   'linear-gradient(to right, #14b8a6, #0f766e)',
+            pink:   'linear-gradient(to right, #ec4899, #be185d)',
+            violet: 'linear-gradient(to right, #8b5cf6, #6d28d9)',
         };
         const icons = { general: 'fa-users', utb: 'fa-star' };
 
         container.innerHTML = companies.map(co => {
             const isActive = this.currentMode === co.id;
-            const grad = gradients[co.color] || 'from-blue-500 to-blue-700';
+            const grad = gradients[co.color] || gradients.blue;
+            const activeStyle = isActive ? `style="background:${grad};color:#fff;box-shadow:0 4px 12px rgba(0,0,0,0.15)"` : '';
             const btnClass = isActive
-                ? `bg-gradient-to-r ${grad} text-white shadow-md`
-                : 'text-gray-500 hover:bg-gray-100';
+                ? 'tab-btn px-5 py-3 rounded-xl font-bold text-sm transition-all duration-300 flex items-center gap-2 shadow-md'
+                : 'tab-btn px-5 py-3 rounded-xl font-bold text-sm transition-all duration-300 flex items-center gap-2 text-gray-500 hover:bg-gray-100';
             const icon = icons[co.id] || 'fa-building';
             const canDelete = co.id !== 'general' && co.id !== 'utb';
             const deleteBtn = canDelete
                 ? `<span onclick="event.stopPropagation();dashboard.deleteCompany('${co.id}')" class="ml-1 opacity-60 hover:opacity-100 hover:text-red-300 transition" title="Supprimer"><i class="fas fa-times text-xs"></i></span>`
                 : '';
             return `<button id="tab-${co.id}" onclick="dashboard.switchMode('${co.id}')"
-                class="tab-btn px-5 py-3 rounded-xl font-bold text-sm transition-all duration-300 flex items-center gap-2 ${btnClass}">
+                class="${btnClass}" ${activeStyle}>
                 <i class="fas ${icon}"></i>${co.name}${deleteBtn}
             </button>`;
         }).join('');
 
         container.innerHTML += `<button onclick="dashboard.showCreateCompanyModal()"
-            class="px-4 py-3 rounded-xl font-bold text-sm text-gray-400 hover:bg-gray-100 hover:text-gray-600 transition-all" title="Nouvelle compagnie">
-            <i class="fas fa-plus"></i>
+            class="px-4 py-3 rounded-xl font-bold text-sm text-blue-500 border-2 border-dashed border-blue-300 hover:bg-blue-50 hover:border-blue-500 transition-all flex items-center gap-2" title="Nouvelle compagnie">
+            <i class="fas fa-plus"></i><span>Nouvelle compagnie</span>
         </button>`;
     }
 
