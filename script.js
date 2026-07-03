@@ -11,6 +11,7 @@ class DeliveryDashboard {
         this.currentMode = 'general'; // 'general' ou 'utb'
         this.data = JSON.parse(localStorage.getItem('deliveryHistoricalData')) || {};
         this.currentDate = new Date().toISOString().split('T')[0];
+        this.margesActives = false;
 
         this.initSelectors();
         this.initEventListeners();
@@ -21,6 +22,7 @@ class DeliveryDashboard {
         // Ne charger les données du formulaire que si on est sur la page principale
         if (document.getElementById('liv-1000')) {
             this.loadDateData(this.currentDate);
+            this.updateMargesUI();
         }
 
         // Charger les données pour les graphiques après un court délai
@@ -28,6 +30,50 @@ class DeliveryDashboard {
             this.loadChartData();
             this.updateChartPeriod('month'); // Par défaut : mois en cours
         }, 500);
+    }
+
+    // Retourne le taux de marge : 1 si les marges sont désactivées, sinon storedVal/100
+    _getMargPct(storedVal) {
+        if (!this.margesActives) return 1;
+        return storedVal / 100;
+    }
+
+    toggleMarges() {
+        this.margesActives = !this.margesActives;
+        localStorage.setItem('margesActives', this.margesActives);
+        this.updateMargesUI();
+        this.calculate();
+    }
+
+    updateMargesUI() {
+        const margesSection = document.getElementById('marges-section');
+        const toggleTrack   = document.getElementById('toggle-marges-track');
+        const toggleDot     = document.getElementById('toggle-marges-dot');
+        const toggleLabel   = document.getElementById('toggle-marges-label');
+        const sectionTitre  = document.getElementById('section-livraisons-titre');
+        const labelNet      = document.getElementById('label-recettes-nettes');
+        const labelBilan    = document.getElementById('label-bilan-nettes');
+        const rowBrut       = document.getElementById('row-stat-brut');
+
+        if (this.margesActives) {
+            if (margesSection)  margesSection.classList.remove('hidden');
+            if (toggleTrack)    { toggleTrack.classList.remove('bg-gray-300'); toggleTrack.classList.add('bg-blue-500'); }
+            if (toggleDot)      toggleDot.style.transform = 'translateX(20px)';
+            if (toggleLabel)    { toggleLabel.textContent = 'Marges ON'; toggleLabel.className = 'text-xs font-medium text-blue-600'; }
+            if (sectionTitre)   sectionTitre.textContent = 'Livraisons et Marges';
+            if (labelNet)       labelNet.textContent = 'Recettes Nettes';
+            if (labelBilan)     labelBilan.textContent = 'Total Nettes';
+            if (rowBrut)        rowBrut.classList.remove('hidden');
+        } else {
+            if (margesSection)  margesSection.classList.add('hidden');
+            if (toggleTrack)    { toggleTrack.classList.add('bg-gray-300'); toggleTrack.classList.remove('bg-blue-500'); }
+            if (toggleDot)      toggleDot.style.transform = 'translateX(0)';
+            if (toggleLabel)    { toggleLabel.textContent = 'Marges OFF'; toggleLabel.className = 'text-xs font-medium text-gray-400'; }
+            if (sectionTitre)   sectionTitre.textContent = 'Livraisons';
+            if (labelNet)       labelNet.textContent = 'Recettes';
+            if (labelBilan)     labelBilan.textContent = 'Total Recettes';
+            if (rowBrut)        rowBrut.classList.add('hidden');
+        }
     }
 
     // Clé localStorage selon le mode actif
@@ -116,12 +162,12 @@ class DeliveryDashboard {
         [1000, 1500, 2000, 2500].forEach(val => {
             const qty = Math.max(0, parseInt(document.getElementById(`liv-${val}`).value) || 0);
             const echInput = Math.max(0, parseInt(document.getElementById(`ech-${val}`).value) || 0);
-            const margPct = (parseFloat(document.getElementById(`mar-${val}`).value) || 0) / 100;
-            
+            const margPct = this._getMargPct(parseFloat(document.getElementById(`mar-${val}`).value) || 100);
+
             // On ne peut pas avoir plus d'échecs que de livraisons
             const ech = Math.min(qty, echInput);
             const reussies = qty - ech;
-            
+
             totalLiv += qty;
             totalEch += ech;
             brut += reussies * val;
@@ -389,7 +435,7 @@ class DeliveryDashboard {
             const qty = Math.max(0, parseInt(res.liv[`l${val}`]) || 0);
             const ech = Math.min(qty, Math.max(0, parseInt(res.liv[`e${val}`]) || 0));
             const reussies = qty - ech;
-            const margPct = (parseFloat(res.liv[`m${val}`]) || 75) / 100;
+            const margPct = this._getMargPct(parseFloat(res.liv[`m${val}`]) || 75);
             const recette = reussies * val;
             const recetteNet = recette * margPct;
             
@@ -609,7 +655,7 @@ Généré par Winner Express - ${dateObj.toLocaleDateString('fr-FR')} ${heure}`;
                     const qty = Math.max(0, parseInt(liv[`l${val}`]) || 0);
                     const ech = Math.min(qty, Math.max(0, parseInt(liv[`e${val}`]) || 0));
                     const reussies = qty - ech;
-                    const margPct = (parseFloat(liv[`m${val}`]) || 75) / 100;
+                    const margPct = this._getMargPct(parseFloat(liv[`m${val}`]) || 75);
                     net += (reussies * val) * margPct;
                 });
 
@@ -874,7 +920,7 @@ Généré par Winner Express - ${dateObj.toLocaleDateString('fr-FR')} ${heure}`;
                     const qty = Math.max(0, parseInt(dayData.liv[`l${val}`]) || 0);
                     const ech = Math.min(qty, Math.max(0, parseInt(dayData.liv[`e${val}`]) || 0));
                     const reussies = qty - ech;
-                    const margPct = (parseFloat(dayData.liv[`m${val}`]) || 75) / 100;
+                    const margPct = this._getMargPct(parseFloat(dayData.liv[`m${val}`]) || 75);
                     net += (reussies * val) * margPct;
                     totalLiv += qty;
                 });
@@ -1157,7 +1203,7 @@ Généré par Winner Express - ${dateObj.toLocaleDateString('fr-FR')} ${heure}`;
                 const qty  = Math.max(0, parseInt(liv[`l${val}`]) || 0);
                 const ech  = Math.min(qty, Math.max(0, parseInt(liv[`e${val}`]) || 0));
                 const ok   = qty - ech;
-                const marg = (parseFloat(liv[`m${val}`]) || 75) / 100;
+                const marg = this._getMargPct(parseFloat(liv[`m${val}`]) || 75);
                 totalLiv += qty;
                 totalEch += ech;
                 brut     += ok * val;

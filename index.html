@@ -232,7 +232,7 @@
                             <div class="w-6 h-6 bg-gradient-to-br from-green-400 to-emerald-600 rounded-lg flex items-center justify-center mr-3">
                                 <i class="fas fa-box text-white text-xs"></i>
                             </div>
-                            Livraisons et Marges
+                            <span id="section-livraisons-titre">Livraisons</span>
                         </h3>
                         <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
                             <div class="space-y-3">
@@ -289,7 +289,7 @@
                                     </div>
                                 </div>
                             </div>
-                            <div class="space-y-3">
+                            <div class="space-y-3" id="marges-section">
                                 <div class="flex justify-between items-center p-3 rounded-xl bg-blue-50 border border-blue-200 group transition-all">
                                     <label class="text-blue-800 text-sm font-medium">Marge 1000</label>
                                     <div class="flex flex-col items-center">
@@ -404,12 +404,12 @@
                             <span id="stat-reussies" class="text-green-600 font-bold text-lg">0</span>
                         </div>
                         <div class="border-t border-gray-200 pt-4 space-y-3">
-                            <div class="flex justify-between items-center">
+                            <div class="flex justify-between items-center" id="row-stat-brut">
                                 <span class="text-gray-600 text-sm font-medium">Recettes Brutes</span>
                                 <span id="stat-brut" class="text-gray-800 font-bold text-lg">0 FCFA</span>
                             </div>
                             <div class="flex justify-between items-center">
-                                <span class="text-gray-600 text-sm font-medium">Recettes Nettes</span>
+                                <span id="label-recettes-nettes" class="text-gray-600 text-sm font-medium">Recettes</span>
                                 <span id="stat-net" class="text-blue-600 font-bold text-lg">0 FCFA</span>
                             </div>
                             <div class="flex justify-between items-center border-t border-gray-100 pt-2 mt-2">
@@ -431,7 +431,7 @@
                     <div class="space-y-4">
                         <div class="grid grid-cols-2 gap-3 border-t border-gray-200 pt-4">
                             <div class="text-left">
-                                <p class="text-xs text-gray-500 font-bold uppercase tracking-wider">Total Nettes</p>
+                                <p id="label-bilan-nettes" class="text-xs text-gray-500 font-bold uppercase tracking-wider">Total Recettes</p>
                                 <p id="bilan-recettes" class="text-blue-600 font-bold text-lg">0 FCFA</p>
                             </div>
                             <div class="text-right">
