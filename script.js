@@ -847,7 +847,7 @@ Généré par Winner Express - ${dateObj.toLocaleDateString('fr-FR')} ${heure}`;
             }
         } catch (error) {
             console.error('Erreur de chargement Supabase:', error);
-            alert('Erreur de chargement: ' + error.message);
+            this.showSyncError('Chargement cloud impossible (données locales utilisées)');
         }
     }
 
@@ -876,7 +876,7 @@ Généré par Winner Express - ${dateObj.toLocaleDateString('fr-FR')} ${heure}`;
 
         } catch (error) {
             console.error('Erreur Supabase:', error);
-            alert('Erreur de synchronisation : ' + error.message);
+            this.showSyncError('Sync cloud échouée — données sauvegardées en local');
         }
     }
 
@@ -886,6 +886,14 @@ Généré par Winner Express - ${dateObj.toLocaleDateString('fr-FR')} ${heure}`;
         notification.innerHTML = '<i class="fas fa-cloud-upload-alt mr-2"></i>Données synchronisées';
         document.body.appendChild(notification);
         setTimeout(() => { notification.remove(); }, 3000);
+    }
+
+    showSyncError(msg) {
+        const notification = document.createElement('div');
+        notification.className = 'fixed top-4 right-4 bg-orange-500 text-white px-4 py-2 rounded-lg shadow-lg z-50';
+        notification.innerHTML = `<i class="fas fa-wifi mr-2"></i>${msg}`;
+        document.body.appendChild(notification);
+        setTimeout(() => { notification.remove(); }, 4000);
     }
 
     async saveWithSync() {
