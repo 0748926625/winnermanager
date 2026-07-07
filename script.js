@@ -147,6 +147,13 @@ class DeliveryDashboard {
             </button>`;
         }).join('');
 
+        const isLivreurs = this.currentMode === 'livreurs';
+        container.innerHTML += `<button id="tab-livreurs" onclick="dashboard.switchMode('livreurs')"
+            class="tab-btn px-5 py-3 rounded-xl font-bold text-sm transition-all duration-300 flex items-center gap-2 ${isLivreurs ? 'text-white shadow-md' : 'text-gray-500 hover:bg-gray-100'}"
+            ${isLivreurs ? 'style="background:#6d28d9"' : ''}>
+            <i class="fas fa-motorcycle"></i>Livreurs
+        </button>`;
+
         container.innerHTML += `<button onclick="dashboard.showCreateCompanyModal()"
             class="px-4 py-3 rounded-xl font-bold text-sm text-blue-500 border-2 border-dashed border-blue-300 hover:bg-blue-50 hover:border-blue-500 transition-all flex items-center gap-2" title="Nouvelle compagnie">
             <i class="fas fa-plus"></i><span>Nouvelle compagnie</span>
@@ -362,17 +369,43 @@ class DeliveryDashboard {
 
     switchMode(mode) {
         if (this.currentMode === mode) return;
-        this.save();
-        this.currentMode = mode;
-        this.data = JSON.parse(localStorage.getItem(this.getStorageKey())) || {};
-        this.renderTabs();
-        const formTitle = document.getElementById('form-title');
-        if (formTitle) formTitle.textContent = `Saisie Journalière — ${this.getCurrentCompanyName()}`;
-        document.body.style.backgroundColor = mode === 'utb' ? '#4c1d95' : '#f3f4f6';
-        if (document.getElementById('liv-1000')) {
-            this.loadDateData(this.currentDate);
+
+        const contentDel = document.getElementById('content-deliveries');
+        const contentLiv = document.getElementById('content-livreurs');
+
+        if (this.currentMode === 'livreurs') {
+            this.saveLivreurDay();
+        } else {
+            this.save();
         }
-        this.updateChartPeriod('month');
+
+        this.currentMode = mode;
+
+        if (mode === 'livreurs') {
+            if (contentDel) contentDel.classList.add('hidden');
+            if (contentLiv) contentLiv.classList.remove('hidden');
+            document.body.style.backgroundColor = '#f3f4f6';
+            this.renderTabs();
+            const dateInput = document.getElementById('livreur-date');
+            if (dateInput) {
+                if (!dateInput.value) dateInput.value = this.currentDate;
+                dateInput.onchange = () => this.renderLivreursDailyTable();
+            }
+            this.renderLivreursList();
+            this.renderLivreursDailyTable();
+        } else {
+            if (contentDel) contentDel.classList.remove('hidden');
+            if (contentLiv) contentLiv.classList.add('hidden');
+            this.data = JSON.parse(localStorage.getItem(this.getStorageKey())) || {};
+            this.renderTabs();
+            const formTitle = document.getElementById('form-title');
+            if (formTitle) formTitle.textContent = `Saisie Journalière — ${this.getCurrentCompanyName()}`;
+            document.body.style.backgroundColor = mode === 'utb' ? '#4c1d95' : '#f3f4f6';
+            if (document.getElementById('liv-1000')) {
+                this.loadDateData(this.currentDate);
+            }
+            this.updateChartPeriod('month');
+        }
     }
 
     initSelectors() {
@@ -639,10 +672,9 @@ class DeliveryDashboard {
     }
 
     showStatus() {
-        // Créer une notification moderne et visible
         const notification = document.createElement('div');
         notification.className = 'fixed top-4 right-4 bg-green-500 text-white px-6 py-4 rounded-lg shadow-xl z-50 flex items-center space-x-3 notification-enter';
-        const modeLabel = this.getCurrentCompanyName();
+        const modeLabel = this.currentMode === 'livreurs' ? 'Livreurs' : this.getCurrentCompanyName();
         notification.innerHTML = `
             <div class="flex-shrink-0">
                 <div class="w-6 h-6 bg-white rounded-full flex items-center justify-center animate-pulse">
@@ -1760,6 +1792,391 @@ ${sep}
 
         const moisSlug = `${year}-${String(month).padStart(2,'0')}`;
         doc.save(`Winner_Express_Rapport_${modeLabel.replace(' ','_')}_${moisSlug}.pdf`);
+    }
+
+    // ─── Gestion Livreurs ─────────────────────────────────────────────────────
+
+    getLivreurs() {
+        return JSON.parse(localStorage.getItem('livreursList')) || [];
+    }
+
+    saveLivreurs(list) {
+        localStorage.setItem('livreursList', JSON.stringify(list));
+    }
+
+    getLivreursDailyData() {
+        return JSON.parse(localStorage.getItem('livreursDailyData')) || {};
+    }
+
+    saveLivreursDailyData(data) {
+        localStorage.setItem('livreursDailyData', JSON.stringify(data));
+    }
+
+    getLivreursPrimes() {
+        return JSON.parse(localStorage.getItem('livreursPrimes')) || {};
+    }
+
+    saveLivreursPrimes(data) {
+        localStorage.setItem('livreursPrimes', JSON.stringify(data));
+    }
+
+    addLivreur() {
+        const input = document.getElementById('new-livreur-nom');
+        const nom = input.value.trim();
+        if (!nom) return;
+        const livreurs = this.getLivreurs();
+        livreurs.push({ id: 'liv_' + Date.now(), nom, actif: true });
+        this.saveLivreurs(livreurs);
+        input.value = '';
+        this.renderLivreursList();
+        this.renderLivreursDailyTable();
+        this.showStatus();
+    }
+
+    toggleLivreur(id) {
+        const livreurs = this.getLivreurs();
+        const l = livreurs.find(l => l.id === id);
+        if (l) { l.actif = !l.actif; this.saveLivreurs(livreurs); }
+        this.renderLivreursList();
+        this.renderLivreursDailyTable();
+    }
+
+    deleteLivreur(id) {
+        if (!confirm('Supprimer ce livreur définitivement ?')) return;
+        this.saveLivreurs(this.getLivreurs().filter(l => l.id !== id));
+        this.renderLivreursList();
+        this.renderLivreursDailyTable();
+    }
+
+    renderLivreursList() {
+        const container = document.getElementById('livreurs-list');
+        const countEl   = document.getElementById('livreurs-count');
+        if (!container) return;
+        const livreurs = this.getLivreurs();
+        if (countEl) countEl.textContent = livreurs.filter(l => l.actif).length;
+        if (livreurs.length === 0) {
+            container.innerHTML = '<p class="text-gray-400 text-sm text-center py-4">Aucun livreur enregistré</p>';
+            return;
+        }
+        container.innerHTML = livreurs.map(l => `
+            <div class="flex items-center justify-between p-3 rounded-xl bg-gray-50 mb-2">
+                <div class="flex items-center gap-3">
+                    <div class="w-8 h-8 rounded-full flex items-center justify-center" style="background:#ede9fe;">
+                        <i class="fas fa-motorcycle text-xs" style="color:#6d28d9;"></i>
+                    </div>
+                    <span class="font-medium text-gray-700 ${l.actif ? '' : 'line-through text-gray-400'}">${l.nom}</span>
+                </div>
+                <div class="flex gap-2 items-center">
+                    <button onclick="dashboard.toggleLivreur('${l.id}')" class="text-xs px-2 py-1 rounded-lg font-semibold ${l.actif ? 'bg-green-100 text-green-700' : 'bg-gray-200 text-gray-500'}">
+                        ${l.actif ? 'Actif' : 'Inactif'}
+                    </button>
+                    <button onclick="dashboard.deleteLivreur('${l.id}')" class="text-red-400 hover:text-red-600 p-1 transition-colors">
+                        <i class="fas fa-trash-alt text-xs"></i>
+                    </button>
+                </div>
+            </div>`).join('');
+    }
+
+    renderLivreursDailyTable() {
+        const container = document.getElementById('livreurs-daily-table');
+        if (!container) return;
+        const date     = document.getElementById('livreur-date')?.value || this.currentDate;
+        const livreurs = this.getLivreurs().filter(l => l.actif);
+        const dayData  = (this.getLivreursDailyData()[date]) || {};
+
+        if (livreurs.length === 0) {
+            container.innerHTML = `<p class="text-gray-400 text-center py-8"><i class="fas fa-motorcycle text-4xl block mb-3 opacity-20"></i>Ajoutez des livreurs pour commencer</p>`;
+            return;
+        }
+
+        container.innerHTML = `
+            <table class="w-full">
+                <thead>
+                    <tr class="text-gray-600 text-sm uppercase" style="background:#f5f3ff;">
+                        <th class="px-4 py-3 text-left rounded-tl-xl">Livreur</th>
+                        <th class="px-4 py-3 text-center">Total</th>
+                        <th class="px-4 py-3 text-center">Livrés</th>
+                        <th class="px-4 py-3 text-center rounded-tr-xl">Retours</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    ${livreurs.map(l => {
+                        const d = dayData[l.id] || { total: 0, livraisons: 0, retours: 0 };
+                        return `<tr class="border-b border-gray-100 hover:bg-gray-50 transition-colors">
+                            <td class="px-4 py-3">
+                                <div class="flex items-center gap-2">
+                                    <div class="w-7 h-7 rounded-full flex items-center justify-center" style="background:#ede9fe;">
+                                        <i class="fas fa-motorcycle text-xs" style="color:#6d28d9;"></i>
+                                    </div>
+                                    <span class="font-semibold text-gray-700">${l.nom}</span>
+                                </div>
+                            </td>
+                            <td class="px-4 py-3 text-center">
+                                <input type="number" id="tot-day-${l.id}" value="${d.total || 0}" min="0"
+                                    class="input-modern w-20 p-2 rounded-lg text-center text-sm"
+                                    oninput="dashboard.updateLivreurSummary()">
+                            </td>
+                            <td class="px-4 py-3 text-center">
+                                <input type="number" id="liv-day-${l.id}" value="${d.livraisons || 0}" min="0"
+                                    class="input-modern w-20 p-2 rounded-lg text-center text-sm"
+                                    oninput="dashboard.updateLivreurSummary()">
+                            </td>
+                            <td class="px-4 py-3 text-center rounded-tr-xl">
+                                <input type="number" id="ret-day-${l.id}" value="${d.retours || 0}" min="0"
+                                    class="input-modern w-20 p-2 rounded-lg text-center text-sm"
+                                    oninput="dashboard.updateLivreurSummary()">
+                            </td>
+                        </tr>`;
+                    }).join('')}
+                </tbody>
+            </table>`;
+        this.updateLivreurSummary();
+    }
+
+    updateLivreurSummary() {
+        const livreurs = this.getLivreurs().filter(l => l.actif);
+        let totalLiv = 0, totalRet = 0;
+        livreurs.forEach(l => {
+            totalLiv += parseInt(document.getElementById(`liv-day-${l.id}`)?.value) || 0;
+            totalRet += parseInt(document.getElementById(`ret-day-${l.id}`)?.value) || 0;
+        });
+        const sumLiv = document.getElementById('sum-livraisons');
+        const sumRet = document.getElementById('sum-retours');
+        const sumNet = document.getElementById('sum-net');
+        if (sumLiv) sumLiv.textContent = totalLiv;
+        if (sumRet) sumRet.textContent = totalRet;
+        if (sumNet) sumNet.textContent = Math.max(0, totalLiv - totalRet);
+    }
+
+    saveLivreurDay() {
+        const date = document.getElementById('livreur-date')?.value;
+        if (!date) return;
+        const livreurs = this.getLivreurs().filter(l => l.actif);
+        const allData  = this.getLivreursDailyData();
+        const dayData  = {};
+        livreurs.forEach(l => {
+            const tot = parseInt(document.getElementById(`tot-day-${l.id}`)?.value) || 0;
+            const liv = parseInt(document.getElementById(`liv-day-${l.id}`)?.value) || 0;
+            const ret = parseInt(document.getElementById(`ret-day-${l.id}`)?.value) || 0;
+            dayData[l.id] = { total: tot, livraisons: liv, retours: ret };
+        });
+        allData[date] = dayData;
+        this.saveLivreursDailyData(allData);
+        this.showStatus();
+    }
+
+    // ─── Rapport mensuel livreurs ─────────────────────────────────────────────
+
+    showLivreurMonthlyModal() {
+        const modal = document.getElementById('livreur-monthly-modal');
+        const now   = new Date();
+        document.getElementById('lrep-year').value  = now.getFullYear();
+        document.getElementById('lrep-month').value = now.getMonth() + 1;
+        document.getElementById('livreur-report-table').innerHTML = `
+            <p class="text-gray-400 text-center py-12">
+                <i class="fas fa-motorcycle text-4xl block mb-3 opacity-20"></i>
+                Sélectionnez un mois et cliquez sur "Afficher"
+            </p>`;
+        modal.classList.remove('hidden');
+        modal.classList.add('flex');
+        this._escLivreur = (e) => { if (e.key === 'Escape') this.closeLivreurModal(); };
+        document.addEventListener('keydown', this._escLivreur);
+    }
+
+    closeLivreurModal() {
+        const modal = document.getElementById('livreur-monthly-modal');
+        modal.classList.add('hidden');
+        modal.classList.remove('flex');
+        if (this._escLivreur) { document.removeEventListener('keydown', this._escLivreur); this._escLivreur = null; }
+    }
+
+    _getLivreurMonthStats(year, month) {
+        const allData  = this.getLivreursDailyData();
+        const livreurs = this.getLivreurs();
+        const daysInMonth = new Date(year, month, 0).getDate();
+        const stats = {};
+        livreurs.forEach(l => { stats[l.id] = { nom: l.nom, total: 0, livraisons: 0, retours: 0 }; });
+
+        for (let d = 1; d <= daysInMonth; d++) {
+            const dateStr = `${year}-${String(month).padStart(2,'0')}-${String(d).padStart(2,'0')}`;
+            const dayData = allData[dateStr];
+            if (!dayData) continue;
+            livreurs.forEach(l => {
+                const entry = dayData[l.id];
+                if (entry) {
+                    stats[l.id].total      += parseInt(entry.total)      || 0;
+                    stats[l.id].livraisons += parseInt(entry.livraisons) || 0;
+                    stats[l.id].retours    += parseInt(entry.retours)    || 0;
+                }
+            });
+        }
+        return livreurs.map(l => ({ ...stats[l.id], id: l.id, net: Math.max(0, stats[l.id].livraisons - stats[l.id].retours) }));
+    }
+
+    generateLivreurPreview() {
+        const year  = parseInt(document.getElementById('lrep-year').value);
+        const month = parseInt(document.getElementById('lrep-month').value);
+        if (!year || !month) return;
+
+        const stats    = this._getLivreurMonthStats(year, month);
+        const moisNom  = new Date(year, month - 1, 1).toLocaleDateString('fr-FR', { month: 'long', year: 'numeric' });
+        const primes   = this.getLivreursPrimes();
+        const monthKey = `${year}-${String(month).padStart(2,'0')}`;
+        const savedPrimes = primes[monthKey] || {};
+
+        const hasData = stats.some(s => s.livraisons > 0 || s.total > 0);
+        const container = document.getElementById('livreur-report-table');
+
+        if (!hasData) {
+            container.innerHTML = `<p class="text-gray-400 text-center py-12"><i class="fas fa-inbox text-4xl block mb-3 opacity-20"></i>Aucune donnée pour ${moisNom}</p>`;
+            return;
+        }
+
+        const totalLiv = stats.reduce((a, s) => a + s.livraisons, 0);
+        const totalRet = stats.reduce((a, s) => a + s.retours,    0);
+        const totalNet = stats.reduce((a, s) => a + s.net,        0);
+
+        container.innerHTML = `
+            <h3 class="text-sm font-bold text-gray-600 mb-3">${moisNom.toUpperCase()} — Saisissez les primes puis cliquez "Sauver primes"</h3>
+            <div class="overflow-x-auto">
+                <table class="w-full text-sm">
+                    <thead>
+                        <tr class="text-xs uppercase text-white" style="background:#6d28d9;">
+                            <th class="px-4 py-3 text-left rounded-tl-lg">Livreur</th>
+                            <th class="px-4 py-3 text-center">Total</th>
+                            <th class="px-4 py-3 text-center">Livrés</th>
+                            <th class="px-4 py-3 text-center">Retours</th>
+                            <th class="px-4 py-3 text-center">Net</th>
+                            <th class="px-4 py-3 text-center rounded-tr-lg">Prime (FCFA)</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        ${stats.map(s => `
+                        <tr class="border-b border-gray-100 hover:bg-purple-50 transition-colors">
+                            <td class="px-4 py-3 font-semibold text-gray-700">
+                                <i class="fas fa-motorcycle mr-2 text-xs" style="color:#6d28d9;"></i>${s.nom}
+                            </td>
+                            <td class="px-4 py-3 text-center text-gray-600">${s.total}</td>
+                            <td class="px-4 py-3 text-center text-gray-600">${s.livraisons}</td>
+                            <td class="px-4 py-3 text-center text-red-500">${s.retours}</td>
+                            <td class="px-4 py-3 text-center font-bold" style="color:#6d28d9;">${s.net}</td>
+                            <td class="px-4 py-3 text-center">
+                                <input type="number" id="prime-${s.id}" value="${savedPrimes[s.id] || ''}"
+                                    class="input-modern w-32 p-2 rounded-lg text-center text-sm" placeholder="0">
+                            </td>
+                        </tr>`).join('')}
+                    </tbody>
+                    <tfoot>
+                        <tr class="font-bold bg-gray-50 border-t-2 border-gray-300">
+                            <td class="px-4 py-3 text-gray-800">TOTAL</td>
+                            <td class="px-4 py-3 text-center text-gray-700">${stats.reduce((a,s)=>a+s.total,0)}</td>
+                            <td class="px-4 py-3 text-center text-gray-700">${totalLiv}</td>
+                            <td class="px-4 py-3 text-center text-red-600">${totalRet}</td>
+                            <td class="px-4 py-3 text-center" style="color:#6d28d9;">${totalNet}</td>
+                            <td class="px-4 py-3 text-center text-gray-400 text-xs italic">saisie manuelle</td>
+                        </tr>
+                    </tfoot>
+                </table>
+            </div>`;
+
+        this._livreurReportCache = { year, month, moisNom, stats, monthKey };
+    }
+
+    saveLivreurPrimes() {
+        if (!this._livreurReportCache) return;
+        const { stats, monthKey } = this._livreurReportCache;
+        const primes    = this.getLivreursPrimes();
+        const monthData = {};
+        stats.forEach(s => {
+            monthData[s.id] = parseFloat(document.getElementById(`prime-${s.id}`)?.value) || 0;
+        });
+        primes[monthKey] = monthData;
+        this.saveLivreursPrimes(primes);
+        this.showStatus();
+    }
+
+    downloadLivreurReportPDF() {
+        if (!this._livreurReportCache) { alert('Cliquez d\'abord sur "Afficher"'); return; }
+        const { year, month, moisNom, stats, monthKey } = this._livreurReportCache;
+        const primes = (this.getLivreursPrimes()[monthKey]) || {};
+
+        const { jsPDF } = window.jspdf;
+        const doc = new jsPDF({ orientation: 'portrait', unit: 'mm', format: 'a4' });
+        const fmt = (v) => Math.round(v).toString().replace(/\B(?=(\d{3})+(?!\d))/g, ' ') + ' FCFA';
+
+        doc.setFillColor(109, 40, 217);
+        doc.rect(0, 0, 210, 28, 'F');
+        doc.setTextColor(255, 255, 255);
+        doc.setFontSize(18); doc.setFont('helvetica', 'bold');
+        doc.text('WINNER EXPRESS', 14, 11);
+        doc.setFontSize(11); doc.setFont('helvetica', 'normal');
+        doc.text('Rapport Mensuel — Livreurs', 14, 19);
+        doc.setFontSize(9);
+        doc.text(`Periode : ${moisNom.toUpperCase()}`, 14, 25.5);
+        doc.text(`Genere le ${new Date().toLocaleString('fr-FR')}`, 210 - 14, 25.5, { align: 'right' });
+
+        const totalPrime = stats.reduce((a, s) => a + (primes[s.id] || 0), 0);
+        const rows = stats.map(s => [
+            s.nom, s.total, s.livraisons, s.retours, s.net,
+            primes[s.id] ? fmt(primes[s.id]) : '-'
+        ]);
+        rows.push([
+            { content: 'TOTAL', styles: { fontStyle: 'bold' } },
+            { content: stats.reduce((a,s)=>a+s.total,0), styles: { fontStyle: 'bold' } },
+            { content: stats.reduce((a,s)=>a+s.livraisons,0), styles: { fontStyle: 'bold' } },
+            { content: stats.reduce((a,s)=>a+s.retours,0), styles: { fontStyle: 'bold', textColor:[220,38,38] } },
+            { content: stats.reduce((a,s)=>a+s.net,0), styles: { fontStyle: 'bold', textColor:[109,40,217] } },
+            { content: fmt(totalPrime), styles: { fontStyle: 'bold', textColor:[22,163,74] } }
+        ]);
+
+        doc.autoTable({
+            startY: 35,
+            head: [['Livreur', 'Total', 'Livrés', 'Retours', 'Net', 'Prime']],
+            body: rows,
+            theme: 'grid',
+            styles: { fontSize: 10, cellPadding: 3, textColor: [50,50,50] },
+            headStyles: { fillColor: [109,40,217], textColor: [255,255,255], fontStyle: 'bold', halign: 'center' },
+            columnStyles: {
+                0: { halign: 'left' },
+                1: { halign: 'center' }, 2: { halign: 'center' },
+                3: { halign: 'center' }, 4: { halign: 'center' }, 5: { halign: 'right' }
+            },
+            alternateRowStyles: { fillColor: [245,243,255] },
+        });
+
+        const ph = doc.internal.pageSize.height;
+        doc.setFillColor(109, 40, 217);
+        doc.rect(0, ph - 10, 210, 10, 'F');
+        doc.setTextColor(255,255,255); doc.setFontSize(7);
+        doc.text('WINNER EXPRESS — Confidentiel', 14, ph - 3.5);
+        doc.text(`${moisNom} • Livreurs`, 210 - 14, ph - 3.5, { align: 'right' });
+
+        doc.save(`Winner_Express_Livreurs_${year}-${String(month).padStart(2,'0')}.pdf`);
+    }
+
+    downloadLivreurReportTxt() {
+        if (!this._livreurReportCache) { alert('Cliquez d\'abord sur "Afficher"'); return; }
+        const { year, month, moisNom, stats, monthKey } = this._livreurReportCache;
+        const primes = (this.getLivreursPrimes()[monthKey]) || {};
+        const fmt    = (v) => Math.round(v).toString().replace(/\B(?=(\d{3})+(?!\d))/g, ' ') + ' FCFA';
+        const sep    = '='.repeat(55);
+        const line   = '-'.repeat(55);
+        const heure  = new Date().toLocaleTimeString('fr-FR');
+
+        let txt = `${sep}\n   RAPPORT MENSUEL LIVREURS — WINNER EXPRESS\n   Periode : ${moisNom.toUpperCase()}\n   Genere le : ${new Date().toLocaleDateString('fr-FR')} a ${heure}\n${sep}\n\n`;
+        txt += `${'Livreur'.padEnd(20)} ${'Total'.padStart(6)} ${'Livr.'.padStart(6)} ${'Ret.'.padStart(6)} ${'Net'.padStart(6)} ${'Prime'.padStart(14)}\n${line}\n`;
+        stats.forEach(s => {
+            const prime = primes[s.id] ? fmt(primes[s.id]) : '-';
+            txt += `${s.nom.padEnd(20)} ${String(s.total).padStart(6)} ${String(s.livraisons).padStart(6)} ${String(s.retours).padStart(6)} ${String(s.net).padStart(6)} ${prime.padStart(14)}\n`;
+        });
+        const totalPrime = stats.reduce((a,s)=>a+(primes[s.id]||0), 0);
+        txt += `${line}\n${'TOTAL'.padEnd(20)} ${String(stats.reduce((a,s)=>a+s.total,0)).padStart(6)} ${String(stats.reduce((a,s)=>a+s.livraisons,0)).padStart(6)} ${String(stats.reduce((a,s)=>a+s.retours,0)).padStart(6)} ${String(stats.reduce((a,s)=>a+s.net,0)).padStart(6)} ${fmt(totalPrime).padStart(14)}\n${sep}\n`;
+
+        const blob = new Blob(['﻿' + txt], { type: 'text/plain;charset=utf-8' });
+        const a    = document.createElement('a');
+        a.href     = URL.createObjectURL(blob);
+        a.download = `Winner_Express_Livreurs_${year}-${String(month).padStart(2,'0')}.txt`;
+        a.click();
     }
 
     generateTestData() {
