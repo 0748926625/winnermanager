@@ -1099,54 +1099,34 @@ Généré par Winner Express - ${dateObj.toLocaleDateString('fr-FR')} ${heure}`;
             const userKey = this.getUserKey();
             const { data, error } = await supabaseClient
                 .from('delivery_data')
-                .select('delivery_data, utb_data')
+                .select('delivery_data, utb_data, extra_companies_data, livreurs_data')
                 .eq('user_key', userKey)
                 .maybeSingle();
 
             if (error) throw error;
 
             if (data) {
-                const raw = data.delivery_data || {};
-
-                // Extraire les métadonnées embarquées (clés "_")
-                const companiesConfig   = raw._companies_config;
-                const extraCompanies    = raw._extra_companies_data || {};
-                const livreursList      = raw._livreurs_list;
-                const livreursDaily     = raw._livreurs_daily;
-                const livreursPrimes    = raw._livreurs_primes;
-
-                // Données livraisons pures (sans les clés "_")
-                const deliveryData = Object.fromEntries(
-                    Object.entries(raw).filter(([k]) => !k.startsWith('_'))
-                );
-
                 // Sync général
                 const localDel = JSON.parse(localStorage.getItem('deliveryHistoricalData')) || {};
-                localStorage.setItem('deliveryHistoricalData', JSON.stringify({ ...localDel, ...deliveryData }));
+                localStorage.setItem('deliveryHistoricalData', JSON.stringify({ ...localDel, ...(data.delivery_data || {}) }));
 
                 // Sync UTB
                 const localUtb = JSON.parse(localStorage.getItem('utbHistoricalData')) || {};
                 localStorage.setItem('utbHistoricalData', JSON.stringify({ ...localUtb, ...(data.utb_data || {}) }));
 
-                // Sync config compagnies
-                if (companiesConfig) localStorage.setItem('winnerCompanies', JSON.stringify(companiesConfig));
-
-                // Sync données compagnies personnalisées
-                Object.entries(extraCompanies).forEach(([id, compData]) => {
+                // Sync compagnies
+                const ec = data.extra_companies_data || {};
+                if (ec.companies) localStorage.setItem('winnerCompanies', JSON.stringify(ec.companies));
+                Object.entries(ec.data || {}).forEach(([id, compData]) => {
                     const local = JSON.parse(localStorage.getItem(`companyData_${id}`)) || {};
                     localStorage.setItem(`companyData_${id}`, JSON.stringify({ ...local, ...compData }));
                 });
 
                 // Sync livreurs
-                if (livreursList) localStorage.setItem('livreursList', JSON.stringify(livreursList));
-                if (livreursDaily) {
-                    const local = this.getLivreursDailyData();
-                    localStorage.setItem('livreursDailyData', JSON.stringify({ ...local, ...livreursDaily }));
-                }
-                if (livreursPrimes) {
-                    const local = this.getLivreursPrimes();
-                    localStorage.setItem('livreursPrimes', JSON.stringify({ ...local, ...livreursPrimes }));
-                }
+                const lv = data.livreurs_data || {};
+                if (lv.list)   localStorage.setItem('livreursList',      JSON.stringify(lv.list));
+                if (lv.daily)  localStorage.setItem('livreursDailyData', JSON.stringify({ ...this.getLivreursDailyData(), ...lv.daily }));
+                if (lv.primes) localStorage.setItem('livreursPrimes',    JSON.stringify({ ...this.getLivreursPrimes(),    ...lv.primes }));
 
                 this.data = JSON.parse(localStorage.getItem(this.getStorageKey())) || {};
                 if (document.getElementById('liv-1000')) this.loadDateData(this.currentDate);
@@ -1162,34 +1142,26 @@ Généré par Winner Express - ${dateObj.toLocaleDateString('fr-FR')} ${heure}`;
         try {
             const userKey = this.getUserKey();
 
-            // Données générales (clés = dates "YYYY-MM-DD")
+            // Données générales
             const deliveryData = JSON.parse(localStorage.getItem('deliveryHistoricalData')) || {};
             const utbData      = JSON.parse(localStorage.getItem('utbHistoricalData'))      || {};
 
-            // Config et données des compagnies personnalisées
+            // Config + données des compagnies personnalisées
             const companies = this.getCompanies();
-            const extraCompaniesData = {};
+            const customData = {};
             companies.filter(co => co.id !== 'general' && co.id !== 'utb').forEach(co => {
-                extraCompaniesData[co.id] = JSON.parse(localStorage.getItem(`companyData_${co.id}`)) || {};
+                customData[co.id] = JSON.parse(localStorage.getItem(`companyData_${co.id}`)) || {};
             });
-
-            // Embarquer tout dans delivery_data sous clés "_"
-            const fullDeliveryData = {
-                ...deliveryData,
-                _companies_config:      companies,
-                _extra_companies_data:  extraCompaniesData,
-                _livreurs_list:         this.getLivreurs(),
-                _livreurs_daily:        this.getLivreursDailyData(),
-                _livreurs_primes:       this.getLivreursPrimes(),
-            };
 
             const { error } = await supabaseClient
                 .from('delivery_data')
                 .upsert({
-                    user_key:      userKey,
-                    delivery_data: fullDeliveryData,
-                    utb_data:      utbData,
-                    last_sync:     new Date().toISOString()
+                    user_key:             userKey,
+                    delivery_data:        deliveryData,
+                    utb_data:             utbData,
+                    extra_companies_data: { companies, data: customData },
+                    livreurs_data:        { list: this.getLivreurs(), daily: this.getLivreursDailyData(), primes: this.getLivreursPrimes() },
+                    last_sync:            new Date().toISOString()
                 }, { onConflict: 'user_key' });
 
             if (error) throw error;
