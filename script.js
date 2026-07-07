@@ -147,13 +147,6 @@ class DeliveryDashboard {
             </button>`;
         }).join('');
 
-        const isLivreurs = this.currentMode === 'livreurs';
-        container.innerHTML += `<button id="tab-livreurs" onclick="dashboard.switchMode('livreurs')"
-            class="tab-btn px-5 py-3 rounded-xl font-bold text-sm transition-all duration-300 flex items-center gap-2 ${isLivreurs ? 'text-white shadow-md' : 'text-gray-500 hover:bg-gray-100'}"
-            ${isLivreurs ? 'style="background:#6d28d9"' : ''}>
-            <i class="fas fa-motorcycle"></i>Livreurs
-        </button>`;
-
         container.innerHTML += `<button onclick="dashboard.showCreateCompanyModal()"
             class="px-4 py-3 rounded-xl font-bold text-sm text-blue-500 border-2 border-dashed border-blue-300 hover:bg-blue-50 hover:border-blue-500 transition-all flex items-center gap-2" title="Nouvelle compagnie">
             <i class="fas fa-plus"></i><span>Nouvelle compagnie</span>
@@ -381,9 +374,12 @@ class DeliveryDashboard {
 
         this.currentMode = mode;
 
+        const livreursBtn = document.getElementById('header-livreurs-btn');
+
         if (mode === 'livreurs') {
             if (contentDel) contentDel.classList.add('hidden');
             if (contentLiv) contentLiv.classList.remove('hidden');
+            if (livreursBtn) { livreursBtn.style.background = 'linear-gradient(135deg, #4c1d95, #3b0764)'; livreursBtn.style.boxShadow = '0 0 0 3px rgba(109,40,217,0.4)'; }
             document.body.style.backgroundColor = '#f3f4f6';
             this.renderTabs();
             const dateInput = document.getElementById('livreur-date');
@@ -396,6 +392,7 @@ class DeliveryDashboard {
         } else {
             if (contentDel) contentDel.classList.remove('hidden');
             if (contentLiv) contentLiv.classList.add('hidden');
+            if (livreursBtn) { livreursBtn.style.background = 'linear-gradient(135deg, #7c3aed, #6d28d9)'; livreursBtn.style.boxShadow = ''; }
             this.data = JSON.parse(localStorage.getItem(this.getStorageKey())) || {};
             this.renderTabs();
             const formTitle = document.getElementById('form-title');

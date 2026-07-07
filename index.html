@@ -179,7 +179,13 @@
                         <p class="text-sm text-gray-600 font-medium">EXPRESS</p>
                     </div>
                 </div>
-                <div class="flex items-center space-x-4">
+                <div class="flex items-center space-x-3">
+                    <button id="header-livreurs-btn" onclick="dashboard.switchMode('livreurs')"
+                        class="flex items-center gap-2 px-5 py-2.5 rounded-xl font-bold text-sm text-white shadow-lg transition-all duration-300 hover:scale-105"
+                        style="background: linear-gradient(135deg, #7c3aed, #6d28d9);">
+                        <i class="fas fa-motorcycle text-base"></i>
+                        <span class="hidden sm:inline">Livreurs</span>
+                    </button>
                     <div class="text-right">
                         <p class="text-sm text-gray-500">Bienvenue</p>
                         <p class="text-gray-800 font-semibold" id="username">Admin</p>
