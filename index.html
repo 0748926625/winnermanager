@@ -180,6 +180,19 @@
                     </div>
                 </div>
                 <div class="flex items-center space-x-3">
+                    <button onclick="dashboard.downloadBackup()" title="Télécharger une sauvegarde complète"
+                        class="flex items-center gap-2 px-4 py-2.5 rounded-xl font-bold text-sm text-white shadow-lg transition-all duration-300 hover:scale-105"
+                        style="background: linear-gradient(135deg, #059669, #10b981);">
+                        <i class="fas fa-download text-base"></i>
+                        <span class="hidden sm:inline">Sauvegarde</span>
+                    </button>
+                    <label title="Restaurer depuis une sauvegarde"
+                        class="flex items-center gap-2 px-4 py-2.5 rounded-xl font-bold text-sm text-white shadow-lg transition-all duration-300 hover:scale-105 cursor-pointer"
+                        style="background: linear-gradient(135deg, #d97706, #f59e0b);">
+                        <i class="fas fa-upload text-base"></i>
+                        <span class="hidden sm:inline">Restaurer</span>
+                        <input type="file" accept=".json" class="hidden" onchange="dashboard.restoreBackup(this)">
+                    </label>
                     <button id="header-livreurs-btn" onclick="dashboard.switchMode('livreurs')"
                         class="flex items-center gap-2 px-5 py-2.5 rounded-xl font-bold text-sm text-white shadow-lg transition-all duration-300 hover:scale-105"
                         style="background: linear-gradient(135deg, #7c3aed, #6d28d9);">

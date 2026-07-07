@@ -2187,6 +2187,80 @@ ${sep}
         a.click();
     }
 
+    // ─── Sauvegarde / Restauration manuelle ──────────────────────────────────
+
+    downloadBackup() {
+        const companies = this.getCompanies();
+        const companiesData = {};
+        companies.forEach(co => {
+            companiesData[co.id] = JSON.parse(localStorage.getItem(`companyData_${co.id}`)) || {};
+        });
+
+        const backup = {
+            version:                 2,
+            exportDate:              new Date().toISOString(),
+            winnerCompanies:         companies,
+            companiesData:           companiesData,
+            deliveryHistoricalData:  JSON.parse(localStorage.getItem('deliveryHistoricalData'))  || {},
+            utbHistoricalData:       JSON.parse(localStorage.getItem('utbHistoricalData'))       || {},
+            livreursList:            this.getLivreurs(),
+            livreursDailyData:       this.getLivreursDailyData(),
+            livreursPrimes:          this.getLivreursPrimes(),
+        };
+
+        const blob = new Blob([JSON.stringify(backup, null, 2)], { type: 'application/json' });
+        const a = document.createElement('a');
+        a.href = URL.createObjectURL(blob);
+        a.download = `WinnerExpress_Backup_${new Date().toISOString().slice(0,10)}.json`;
+        a.click();
+    }
+
+    restoreBackup(input) {
+        const file = input.files[0];
+        if (!file) return;
+        const reader = new FileReader();
+        reader.onload = (e) => {
+            try {
+                const backup = JSON.parse(e.target.result);
+                if (!backup.version || !backup.exportDate) throw new Error('Fichier invalide');
+
+                if (!confirm(`Restaurer la sauvegarde du ${new Date(backup.exportDate).toLocaleString('fr-FR')} ?\n\nToutes les données actuelles seront remplacées.`)) {
+                    input.value = '';
+                    return;
+                }
+
+                // Restaurer compagnies
+                if (backup.winnerCompanies) localStorage.setItem('winnerCompanies', JSON.stringify(backup.winnerCompanies));
+
+                // Restaurer données de chaque compagnie
+                const companies = backup.winnerCompanies || [];
+                companies.forEach(co => {
+                    const d = (backup.companiesData || {})[co.id];
+                    if (d) localStorage.setItem(`companyData_${co.id}`, JSON.stringify(d));
+                });
+
+                // Restaurer general et UTB (compat v1)
+                if (backup.deliveryHistoricalData) localStorage.setItem('deliveryHistoricalData', JSON.stringify(backup.deliveryHistoricalData));
+                if (backup.utbHistoricalData)      localStorage.setItem('utbHistoricalData',      JSON.stringify(backup.utbHistoricalData));
+
+                // Restaurer livreurs
+                if (backup.livreursList)      localStorage.setItem('livreursList',      JSON.stringify(backup.livreursList));
+                if (backup.livreursDailyData) localStorage.setItem('livreursDailyData', JSON.stringify(backup.livreursDailyData));
+                if (backup.livreursPrimes)    localStorage.setItem('livreursPrimes',    JSON.stringify(backup.livreursPrimes));
+
+                input.value = '';
+                this.showSyncStatus();
+
+                // Recharger l'app pour appliquer toutes les données
+                setTimeout(() => location.reload(), 1200);
+            } catch (err) {
+                alert('Erreur lors de la restauration : ' + err.message);
+                input.value = '';
+            }
+        };
+        reader.readAsText(file);
+    }
+
     generateTestData() {
         const today = new Date();
         const testData = {
