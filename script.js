@@ -1096,9 +1096,7 @@ Généré par Winner Express - ${dateObj.toLocaleDateString('fr-FR')} ${heure}`;
 
     async syncFromSupabase() {
         try {
-            console.log('Chargement depuis Supabase...');
             const userKey = this.getUserKey();
-
             const { data, error } = await supabaseClient
                 .from('delivery_data')
                 .select('delivery_data, utb_data')
@@ -1108,25 +1106,51 @@ Généré par Winner Express - ${dateObj.toLocaleDateString('fr-FR')} ${heure}`;
             if (error) throw error;
 
             if (data) {
-                const modes = [
-                    { remoteData: data.delivery_data || {}, storageKey: 'deliveryHistoricalData' },
-                    { remoteData: data.utb_data || {},      storageKey: 'utbHistoricalData' }
-                ];
+                const raw = data.delivery_data || {};
 
-                for (const m of modes) {
-                    const localData = JSON.parse(localStorage.getItem(m.storageKey)) || {};
-                    const mergedData = { ...localData, ...m.remoteData };
-                    localStorage.setItem(m.storageKey, JSON.stringify(mergedData));
-                    console.log(`Synchronisé (${Object.keys(mergedData).length} jours)`);
+                // Extraire les métadonnées embarquées (clés "_")
+                const companiesConfig   = raw._companies_config;
+                const extraCompanies    = raw._extra_companies_data || {};
+                const livreursList      = raw._livreurs_list;
+                const livreursDaily     = raw._livreurs_daily;
+                const livreursPrimes    = raw._livreurs_primes;
+
+                // Données livraisons pures (sans les clés "_")
+                const deliveryData = Object.fromEntries(
+                    Object.entries(raw).filter(([k]) => !k.startsWith('_'))
+                );
+
+                // Sync général
+                const localDel = JSON.parse(localStorage.getItem('deliveryHistoricalData')) || {};
+                localStorage.setItem('deliveryHistoricalData', JSON.stringify({ ...localDel, ...deliveryData }));
+
+                // Sync UTB
+                const localUtb = JSON.parse(localStorage.getItem('utbHistoricalData')) || {};
+                localStorage.setItem('utbHistoricalData', JSON.stringify({ ...localUtb, ...(data.utb_data || {}) }));
+
+                // Sync config compagnies
+                if (companiesConfig) localStorage.setItem('winnerCompanies', JSON.stringify(companiesConfig));
+
+                // Sync données compagnies personnalisées
+                Object.entries(extraCompanies).forEach(([id, compData]) => {
+                    const local = JSON.parse(localStorage.getItem(`companyData_${id}`)) || {};
+                    localStorage.setItem(`companyData_${id}`, JSON.stringify({ ...local, ...compData }));
+                });
+
+                // Sync livreurs
+                if (livreursList) localStorage.setItem('livreursList', JSON.stringify(livreursList));
+                if (livreursDaily) {
+                    const local = this.getLivreursDailyData();
+                    localStorage.setItem('livreursDailyData', JSON.stringify({ ...local, ...livreursDaily }));
+                }
+                if (livreursPrimes) {
+                    const local = this.getLivreursPrimes();
+                    localStorage.setItem('livreursPrimes', JSON.stringify({ ...local, ...livreursPrimes }));
                 }
 
                 this.data = JSON.parse(localStorage.getItem(this.getStorageKey())) || {};
-
-                if (document.getElementById('liv-1000')) {
-                    this.loadDateData(this.currentDate);
-                }
-            } else {
-                console.log('Aucune donnée trouvée dans Supabase pour cet utilisateur');
+                if (document.getElementById('liv-1000')) this.loadDateData(this.currentDate);
+                this.renderTabs();
             }
         } catch (error) {
             console.error('Erreur de chargement Supabase:', error);
@@ -1136,25 +1160,39 @@ Généré par Winner Express - ${dateObj.toLocaleDateString('fr-FR')} ${heure}`;
 
     async syncToSupabase() {
         try {
-            console.log('Synchronisation vers Supabase...');
             const userKey = this.getUserKey();
 
-            // On envoie les deux modes depuis localStorage pour ne rien perdre
+            // Données générales (clés = dates "YYYY-MM-DD")
             const deliveryData = JSON.parse(localStorage.getItem('deliveryHistoricalData')) || {};
-            const utbData = JSON.parse(localStorage.getItem('utbHistoricalData')) || {};
+            const utbData      = JSON.parse(localStorage.getItem('utbHistoricalData'))      || {};
+
+            // Config et données des compagnies personnalisées
+            const companies = this.getCompanies();
+            const extraCompaniesData = {};
+            companies.filter(co => co.id !== 'general' && co.id !== 'utb').forEach(co => {
+                extraCompaniesData[co.id] = JSON.parse(localStorage.getItem(`companyData_${co.id}`)) || {};
+            });
+
+            // Embarquer tout dans delivery_data sous clés "_"
+            const fullDeliveryData = {
+                ...deliveryData,
+                _companies_config:      companies,
+                _extra_companies_data:  extraCompaniesData,
+                _livreurs_list:         this.getLivreurs(),
+                _livreurs_daily:        this.getLivreursDailyData(),
+                _livreurs_primes:       this.getLivreursPrimes(),
+            };
 
             const { error } = await supabaseClient
                 .from('delivery_data')
                 .upsert({
-                    user_key: userKey,
-                    delivery_data: deliveryData,
-                    utb_data: utbData,
-                    last_sync: new Date().toISOString()
+                    user_key:      userKey,
+                    delivery_data: fullDeliveryData,
+                    utb_data:      utbData,
+                    last_sync:     new Date().toISOString()
                 }, { onConflict: 'user_key' });
 
             if (error) throw error;
-
-            console.log('Données synchronisées avec succès');
             this.showSyncStatus();
 
         } catch (error) {
@@ -1817,7 +1855,7 @@ ${sep}
         localStorage.setItem('livreursPrimes', JSON.stringify(data));
     }
 
-    addLivreur() {
+    async addLivreur() {
         const input = document.getElementById('new-livreur-nom');
         const nom = input.value.trim();
         if (!nom) return;
@@ -1827,7 +1865,7 @@ ${sep}
         input.value = '';
         this.renderLivreursList();
         this.renderLivreursDailyTable();
-        this.showStatus();
+        await this.syncToSupabase();
     }
 
     toggleLivreur(id) {
@@ -1838,11 +1876,12 @@ ${sep}
         this.renderLivreursDailyTable();
     }
 
-    deleteLivreur(id) {
+    async deleteLivreur(id) {
         if (!confirm('Supprimer ce livreur définitivement ?')) return;
         this.saveLivreurs(this.getLivreurs().filter(l => l.id !== id));
         this.renderLivreursList();
         this.renderLivreursDailyTable();
+        await this.syncToSupabase();
     }
 
     renderLivreursList() {
@@ -1945,7 +1984,7 @@ ${sep}
         if (sumNet) sumNet.textContent = Math.max(0, totalLiv - totalRet);
     }
 
-    saveLivreurDay() {
+    async saveLivreurDay() {
         const date = document.getElementById('livreur-date')?.value;
         if (!date) return;
         const livreurs = this.getLivreurs().filter(l => l.actif);
@@ -1959,7 +1998,7 @@ ${sep}
         });
         allData[date] = dayData;
         this.saveLivreursDailyData(allData);
-        this.showStatus();
+        await this.syncToSupabase();
     }
 
     // ─── Rapport mensuel livreurs ─────────────────────────────────────────────
@@ -2079,7 +2118,7 @@ ${sep}
         this._livreurReportCache = { year, month, moisNom, stats, monthKey };
     }
 
-    saveLivreurPrimes() {
+    async saveLivreurPrimes() {
         if (!this._livreurReportCache) return;
         const { stats, monthKey } = this._livreurReportCache;
         const primes    = this.getLivreursPrimes();
@@ -2089,7 +2128,7 @@ ${sep}
         });
         primes[monthKey] = monthData;
         this.saveLivreursPrimes(primes);
-        this.showStatus();
+        await this.syncToSupabase();
     }
 
     downloadLivreurReportPDF() {
