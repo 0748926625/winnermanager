@@ -1,0 +1,21 @@
+name: Garder Supabase actif
+
+on:
+  schedule:
+    # Lundi et jeudi à 6h UTC — bien en dessous du seuil de pause (7 jours d'inactivité)
+    - cron: '0 6 * * 1,4'
+  workflow_dispatch: {}
+
+jobs:
+  ping:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Ping Supabase
+        env:
+          SUPABASE_URL: https://zvkawvlhmqqmxilbbqms.supabase.co
+          SUPABASE_ANON_KEY: sb_publishable_hXyLca3gTotTg9VzHN_Qbw_WnJJvDvG
+        run: |
+          curl -sf "$SUPABASE_URL/rest/v1/delivery_data?select=user_key&limit=1" \
+            -H "apikey: $SUPABASE_ANON_KEY" \
+            -H "Authorization: Bearer $SUPABASE_ANON_KEY" \
+            -o /dev/null -w "Statut HTTP: %{http_code}\n"
